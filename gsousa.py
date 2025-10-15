@@ -1,43 +1,22 @@
-import time
 import pygame
+import time
+import os
+import math
+
+MAX_STAT = 100
+
+class Pou:
+    def __init__(self, x, y, pasta_sprites, tamanho=(460, 460)):
+        self.x = x
+        self.y_base = y  # base pos for jumping animation ( in development )
+        self.y = y
+        self.tamanho = tamanho
 
 
-
-# Class Pou
-
-
-    # Constructor of Pou 
-
-    
-    # Update Stats - Hunger / Sleep / Hygiene / Energy / Happy  
-   
-
-    # Feed Function - Logical and change sprites  
-    # MiniGames Function - Logical and pop-up window with mini game
-    # Clean Function - Logical and change sprites 
-    # Sleep Function - Logical and change sprites
-    
+        # Stats of POU
+        self.fome = 70
+        self.felicidade = 80
+        self.limpeza = 80
+        self.energia = 80
 
 
-    # Pou's body - Upload sprites 
-
-        
-
-    # Get stats
-
-
-
-#Tasks: 
-    # Shop Function - Bonito
-
-    # Economy System - Costa 
-
-    # Save System - Ferreira 
-
-        
-    
-        
-
-
-    
-    
