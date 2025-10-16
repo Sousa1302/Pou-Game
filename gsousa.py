@@ -42,5 +42,115 @@ class Pou:
             self.happiness = clamp(self.happiness + 3, 0, MAX_STAT)
             self.state = "happy"
 
+    def toggle_sleep(self):
+        self.is_sleeping = not self.is_sleeping
+        self.state = "sleep" if self.is_sleeping else "idle"
+
+    def play_react(self): # Reaction from when he comes back from the minigame
+        self.happiness = clamp(self.happiness + 8, 0, MAX_STAT)
+        self.energy = clamp(self.energy - 12, 0, MAX_STAT)
+        self.state = "happy"
+
+
+    def update(self, delta_time: float):    # Decrease stats as the time goes by
+        decay = delta_time * 0.8        # speed of decrease of stats 
+
+        if not self.is_sleeping:
+            self.hunger = clamp(self.hunger - decay, 0, MAX_STAT)
+            self.energy = clamp(self.energy - decay * 0.4, 0, MAX_STAT)
+            self.cleanliness = clamp(self.cleanliness - decay * 0.3, 0, MAX_STAT)
+        else:
+            self.energy = clamp(self.energy + decay * 1.2, 0, MAX_STAT)
+
+        if self.is_sleeping:
+            self.state = "sleep"
+        else:
+            bad = sum(s < 30 for s in [self.hunger, self.happiness, self.cleanliness, self.energy])
+            if bad >= 1:
+                self.state = "sad" if self.state != "eat" else self.state
+            else:
+                if self.state not in ("eat", "happy"):
+                    self.state = "idle"
+
+        self.anim_timer += delta_time
+
+
+
+class MiniGame:
+    def __init__(self):
+        
+
+        def start(self):
+
+        
+        def end(self):
+
+        
+        def update(self):
+
+
+
+
+
+class Shop:
+    def __init__(self):
+    
+
+    def toggle(self):
+        self.visible = not self.visible
+    
+
+    def draw(self):
+
+
+
+
+class SoundBank:
+    def __init__(self):
+        
+    
+    def play(self):
+
+
+
+
+class HUD:
+    def __init__(self):
+        
+
+    def draw_bar(self):
+    
+
+    def draw(self):
+
+
+
+
+class Game:
+    def __init__(self):
+        pygame.init()
+        pygame.display.set_caption("Pou Arresacado")
+        self.fullscreen = True
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)       # Width and height of the game window
+        self.clock = pygame.time.Clock()
+
+
+    def toggle_fullscreen(self):
+        self.fullscreen = not self.fullscreen
+        flags = pygame.FULLSCREEN if self.fullscreen else 0
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
+
+    
+    def make_buttons(self):
+
+    
+    def save(self):
+
+    
+    def load(self):
+
+
+
+
         
 
