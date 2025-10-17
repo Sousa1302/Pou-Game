@@ -2,8 +2,32 @@ import pygame
 import time
 import os
 import math
+from typing import Dict, List, Optional, Tuple
 
 ASSETS_DIR = "assets"
+DEFAULT_SKINS = [
+    {"id": "Toni", "name": "Antonio", "price": 0},
+    {"id": "Alex", "name": "Alexandre", "price": 20},
+    {"id": "Unknown", "name": "Unknown", "price": 30},
+]
+
+SKIN_BACKGROUNDS = {
+    "Toni": os.path.join("backgrounds", "windowsXP.png"),
+    "Alex": os.path.join("backgrounds", "conservatorio.png"),
+    "Unknown": os.path.join("backgrounds", "unknown.png"),
+}
+
+WIDTH, HEIGHT = 1920, 1080
+
+
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GRAY = (40, 40, 40)
+DARK = (20, 20, 20)
+GREEN = (0, 200, 0)
+RED = (200, 50, 50)
+BLUE = (60, 120, 220)
+YELLOW = (230, 200, 0)
 
 MAX_STAT = 100
 
@@ -12,8 +36,15 @@ POU_STATES = ["idle", "eat", "sleep", "happy", "sad"]
 def clamp(topic: float, lowest_value: float, highest_value: float) -> float:
     return max(lowest_value, min(highest_value, topic))
 
+
+class AssetLoader:
+    def __init__(self, base_dir: str):
+        self.base_dir = base_dir
+        
+
+
 class Pou:
-    def __init__(self, x, y, sprites_folder, size=(460, 460)):
+    def __init__(self, assets: AssetLoader, x: int, y: int, scale: Tuple[int, int] = (260, 260)):
         self.x = x
         self.y_base = y  # base pos for jumping animation ( in development )
         self.y = y
@@ -30,17 +61,44 @@ class Pou:
 
         self.state = "idle"  # idle / eat / sleep / happy / sad
         self.is_sleeping = False
-        
+        self.anim_timer = 0.0
 
-        def feed(self):
-            self.state = "eat"
-            self.hunger = clamp(self.hunger + 20, 0, MAX_STAT)
-            self.happiness = clamp(self.happiness + 5, 0, MAX_STAT)
+
+    def to_dict(self) -> dict:
+        return {
+            "hunger": self.hunger,
+            "happiness": self.happiness,
+            "cleanliness": self.cleanliness,
+            "energy": self.energy,
+            "coins": self.coins,
+            "is_sleeping": self.is_sleeping,
+            "state": self.state,
+            "current_skin": self.current_skin,
+            "owned_skins": self.owned_skins,
+        }
+    
+    def from_dict(self, data: dict):
+        self.hunger = data.get("hunger", self.hunger)
+        self.happiness = data.get("happiness", self.happiness)
+        self.cleanliness = data.get("cleanliness", self.cleanliness)
+        self.energy = data.get("energy", self.energy)
+        self.coins = data.get("coins", self.coins)
+        self.is_sleeping = data.get("is_sleeping", False)
+        self.state = data.get("state", "idle")
+        self.current_skin = data.get("current_skin", "classic")
+        self.owned_skins.update(data.get("owned_skins", {}))
+
+
+
+    def feed(self):
+        self.state = "eat"
+        self.hunger = clamp(self.hunger + 20, 0, MAX_STAT)
+        self.happiness = clamp(self.happiness + 5, 0, MAX_STAT)
         
-        def bath(self):
-            self.cleanliness = clamp(self.cleanliness + 25, 0, MAX_STAT)
-            self.happiness = clamp(self.happiness + 3, 0, MAX_STAT)
-            self.state = "happy"
+    def bath(self):
+        self.cleanliness = clamp(self.cleanliness + 25, 0, MAX_STAT)
+        self.happiness = clamp(self.happiness + 3, 0, MAX_STAT)
+        self.state = "happy"
 
     def toggle_sleep(self):
         self.is_sleeping = not self.is_sleeping
@@ -50,6 +108,17 @@ class Pou:
         self.happiness = clamp(self.happiness + 8, 0, MAX_STAT)
         self.energy = clamp(self.energy - 12, 0, MAX_STAT)
         self.state = "happy"
+
+    def buy_skin(self, skin_id: str, price: int) -> bool:
+        if self.owned_skins.get(skin_id):
+            self.current_skin = skin_id
+            return True
+        if self.coins >= price:
+            self.coins -= price
+            self.owned_skins[skin_id] = True
+            self.current_skin = skin_id
+            return True
+        return False
 
 
     def update(self, delta_time: float):    # Decrease stats as the time goes by
@@ -74,6 +143,16 @@ class Pou:
 
         self.anim_timer += delta_time
 
+
+    def draw(self, screen: pygame.Surface):
+        img = self.get_state_image()
+        rect = img.get_rect(center=(self.x, self.y))
+        screen.blit(img, rect)
+
+    def get_state_image(self) -> pygame.Surface:
+        # Path: assets/pou/<skin>/<state>.png
+        path = os.path.join("pou", self.current_skin, f"{self.state}.png")
+        return self.assets.load_image(path, self.scale)
 
 
 class MiniGame:
@@ -151,6 +230,7 @@ class Game:
 
 
 
+class Button:
 
         
 
