@@ -36,19 +36,76 @@ POU_STATES = ["idle", "eat", "sleep", "happy", "sad"]
 def clamp(topic: float, lowest_value: float, highest_value: float) -> float:
     return max(lowest_value, min(highest_value, topic))
 
+def lighten(color: Tuple[int, int, int], amount: int = 30) -> Tuple[int, int, int]:
+    r, g, b = color
+    return (min(255, r + amount), min(255, g + amount), min(255, b + amount))
+
 
 class AssetLoader:
     def __init__(self, base_dir: str):
         self.base_dir = base_dir
+        self.image_cache: Dict[str, pygame.Surface] = {}
+        self.sound_cache: Dict[str, Optional[pygame.mixer.Sound]] = {}
         
+    def load_image(self, path: str, size: Optional[Tuple[int, int]] = None) -> pygame.Surface:
+        key = f"{path}|{size}"
+        if key in self.image_cache:
+            return self.image_cache[key]
+
+        full = os.path.join(self.base_dir, path)
+        surf: pygame.Surface
+        if os.path.isfile(full):
+            try:
+                surf = pygame.image.load(full).convert_alpha()
+            except Exception:
+                surf = pygame.Surface((size or (200, 200)), pygame.SRCALPHA)
+                surf.fill((180, 180, 180, 255))
+        else:
+            # Fallback visual amigável
+            w, h = size or (220, 220)
+            surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            surf.fill((70, 70, 70, 255))
+            pygame.draw.rect(surf, (120, 120, 120), (0, 0, w, h), 6, border_radius=18)
+            self.draw_text_on(surf, "(sprite\nfaltando)")
+
+        if size:
+            surf = pygame.transform.smoothscale(surf, size)
+
+        self.image_cache[key] = surf
+        return surf
+    
+
+    def draw_text_on(self, surface: pygame.Surface, text: str):
+        font = pygame.font.SysFont("Arial", 16)
+        lines = text.split("\n")
+        y = surface.get_height() // 2 - len(lines) * 10
+        for i, line in enumerate(lines):
+            img = font.render(line, True, WHITE)
+            rect = img.get_rect(center=(surface.get_width() // 2, y + i * 20))
+            surface.blit(img, rect)
+
+
+    def load_sound(self, path: str) -> Optional[pygame.mixer.Sound]:
+        if path in self.sound_cache:
+            return self.sound_cache[path]
+        full = os.path.join(self.base_dir, path)
+        if os.path.isfile(full):
+            try:
+                snd = pygame.mixer.Sound(full)
+            except Exception:
+                snd = None
+        else:
+            snd = None
+        self.sound_cache[path] = snd
+        return snd
 
 
 class Pou:
     def __init__(self, assets: AssetLoader, x: int, y: int, scale: Tuple[int, int] = (260, 260)):
         self.x = x
-        self.y_base = y  # base pos for jumping animation ( in development )
         self.y = y
-        self.size = size
+        self.assets = assets
+        self.scale = scale
 
 
         # Stats of POU
@@ -62,6 +119,9 @@ class Pou:
         self.state = "idle"  # idle / eat / sleep / happy / sad
         self.is_sleeping = False
         self.anim_timer = 0.0
+
+        self.owned_skins = {"Toni": True}
+        self.current_skin = "Toni"
 
 
     def to_dict(self) -> dict:
