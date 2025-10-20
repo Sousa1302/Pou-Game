@@ -2,10 +2,11 @@ import pygame
 import time
 import os
 import math
+import random
 from typing import Dict, List, Optional, Tuple
 
 ASSETS_DIR = "assets"
-DEFAULT_SKINS = [
+DEFAULT_SKINS = [ru
     {"id": "Toni", "name": "Antonio", "price": 0},
     {"id": "Alex", "name": "Alexandre", "price": 20},
     {"id": "Unknown", "name": "Unknown", "price": 30},
@@ -216,30 +217,164 @@ class Pou:
 
 
 class MiniGame:
-    def __init__(self):
-        
+    def __init__(self, assets: AssetLoader, pou: Pou):
+        self.assets = assets
+        self.pou = pou
+        self.active = False
+        self.items: List[pygame.Rect] = []
+        self.item_speed = 220
+        self.spawn_timer = 0.0
+        self.duration = 30.0  # seconds
+        self.time_left = self.duration
+        self.basket = pygame.Rect(WIDTH // 2 - 60, HEIGHT - 120, 120, 28)
+        self.score = 0
 
-        def start(self):
+        # images
+        self.food_img = assets.load_image("icons/food.png", (32, 32))
 
-        
-        def end(self):
+    def start(self):
+        self.active = True
+        self.items.clear()
+        self.time_left = self.duration
+        self.score = 0
 
-        
-        def update(self):
+    def end(self) -> int:
+        self.active = False
+        # reward : coins
+        earned = self.score
+        self.pou.coins += earned
+        self.pou.happiness = clamp(self.pou.happiness + min(20, earned * 1.2), 0, MAX_STAT)
+        self.pou.energy = clamp(self.pou.energy - 8, 0, MAX_STAT)
+        return earned
 
+    def update(self, dt: float):
+        if not self.active:
+            return
+        self.time_left -= dt
+        if self.time_left <= 0:
+            self.end()
+            return
 
+        # move basket with mouse cursor
+        mx, _ = pygame.mouse.get_pos()
+        self.basket.centerx = mx
+        self.basket.clamp_ip(pygame.Rect(0, 0, WIDTH, HEIGHT))
+
+        # item spawn
+        self.spawn_timer += dt
+        if self.spawn_timer >= 0.5:
+            self.spawn_timer = 0
+            x = random.randint(20, WIDTH - 20)
+            r = pygame.Rect(x, -30, 32, 32)
+            self.items.append(r)
+
+        # move items and colissions
+        for r in list(self.items):
+            r.y += int(self.item_speed * dt)
+            if r.colliderect(self.basket):
+                self.items.remove(r)
+                self.score += 1
+                self.pou.hunger = clamp(self.pou.hunger + 3, 0, MAX_STAT)
+            elif r.top > HEIGHT + 10:
+                self.items.remove(r)
+
+    def draw(self, screen: pygame.Surface, font: pygame.font.Font):
+        if not self.active:
+            return
+        # background
+        screen.fill((15, 30, 45))
+
+        # items
+        for r in self.items:
+            screen.blit(self.food_img, r)
+
+        # basket
+        pygame.draw.rect(screen, YELLOW, self.basket, border_radius=8)
+
+        # UI
+        txt = font.render(f"Tempo: {self.time_left:0.1f}s  |  Pontos: {self.score}", True, WHITE)
+        screen.blit(txt, (20, 20))
 
 
 
 class Shop:
-    def __init__(self):
-    
+    def __init__(self, assets: AssetLoader, pou: Pou):
+        self.assets = assets
+        self.pou = pou
+        self.visible = False
+        self.items = DEFAULT_SKINS
+        self.close_btn = pygame.Rect(0, 0, 40, 40)  # position in draw
 
     def toggle(self):
         self.visible = not self.visible
-    
 
-    def draw(self):
+    def handle_event(self, event: pygame.event.Event):
+        if not self.visible:
+            return
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.close_btn.collidepoint(event.pos):
+                self.toggle()
+
+    def draw(self, screen: pygame.Surface, font: pygame.font.Font, big: pygame.font.Font):
+        if not self.visible:
+            return
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        screen.blit(overlay, (0, 0))
+
+        # Shop Window
+        panel = pygame.Rect(160, 100, WIDTH - 320, HEIGHT - 200)
+        pygame.draw.rect(screen, (30, 30, 35), panel, border_radius=16)
+        pygame.draw.rect(screen, (80, 80, 90), panel, 4, border_radius=16)
+
+        title = big.render("Loja de Skins", True, WHITE)
+        screen.blit(title, (panel.x + 24, panel.y + 16))
+
+        # X button to close the shop
+        self.close_btn = pygame.Rect(panel.right - 56, panel.y + 16, 40, 40)
+        mx, my = pygame.mouse.get_pos()
+        x_hover = self.close_btn.collidepoint((mx, my))
+        x_color = lighten(RED, 25) if x_hover else RED
+        pygame.draw.rect(screen, x_color, self.close_btn, border_radius=8)
+        x_txt = big.render("X", True, WHITE)
+        screen.blit(x_txt, x_txt.get_rect(center=self.close_btn.center))
+
+        # Items List
+        y = panel.y + 90
+        for it in self.items:
+            skin_id = it["id"]
+            name = it["name"]
+            price = it["price"]
+            owned = self.pou.owned_skins.get(skin_id, False)
+
+            # skin icon : show idle
+            icon = self.assets.load_image(os.path.join("pou", skin_id, "idle.png"), (110, 110))
+            screen.blit(icon, (panel.x + 28, y))
+
+            # name and price
+            txt = font.render(f"{name}  —  {price} moedas", True, WHITE)
+            screen.blit(txt, (panel.x + 160, y + 34))
+
+            # Buy button and use button
+            btxt = "Usar" if owned else "Comprar"
+            base = (60, 130, 60) if owned else (60, 60, 130)
+            btn_rect = pygame.Rect(panel.right - 220, y + 34, 160, 48)
+            b_hover = btn_rect.collidepoint((mx, my))
+            col = lighten(base, 25) if b_hover else base
+            pygame.draw.rect(screen, col, btn_rect, border_radius=10)
+            label = font.render(btxt, True, WHITE)
+            screen.blit(label, label.get_rect(center=btn_rect.center))
+
+            if b_hover and pygame.mouse.get_pressed(num_buttons=3)[0]:
+                if owned:
+                    self.pou.current_skin = skin_id
+                else:
+                    self.pou.buy_skin(skin_id, price)
+
+            y += 150
+
+        coins_txt = font.render(f"Moedas: {self.pou.coins}", True, YELLOW)
+        screen.blit(coins_txt, (panel.x + 24, panel.bottom - 50))
 
 
 
