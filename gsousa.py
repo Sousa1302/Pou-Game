@@ -380,22 +380,41 @@ class Shop:
 
 
 class SoundBank:
-    def __init__(self):
-        
-    
-    def play(self):
+    def __init__(self, assets: AssetLoader):
+        self.s_eat = assets.load_sound("sounds/eat.wav")
+        self.s_sleep = assets.load_sound("sounds/sleep.wav")
+        self.s_happy = assets.load_sound("sounds/happy.wav")
+        self.s_sad = assets.load_sound("sounds/sad.wav")
+
+    def play(self, s: Optional[pygame.mixer.Sound]):
+        if s is not None:
+            s.play()
 
 
 
 
 class HUD:
-    def __init__(self):
-        
+    def __init__(self, pou: Pou):
+        self.pou = pou
 
-    def draw_bar(self):
-    
+    def draw_bar(self, screen: pygame.Surface, x: int, y: int, w: int, h: int, value: float, color: Tuple[int, int, int], label: str, font: pygame.font.Font):
+        pygame.draw.rect(screen, (60, 60, 60), (x, y, w, h), border_radius=8)
+        fill = int((value / MAX_STAT) * (w - 4))
+        pygame.draw.rect(screen, color, (x + 2, y + 2, fill, h - 4), border_radius=6)
+        txt = font.render(f"{label}: {int(value)}", True, WHITE)
+        screen.blit(txt, (x + 6, y - 24))
 
-    def draw(self):
+    def draw(self, screen: pygame.Surface, font: pygame.font.Font):
+        w = 300
+        x = 24
+        y = 24
+        self.draw_bar(screen, x, y, w, 22, self.pou.hunger, YELLOW, "Fome", font)
+        self.draw_bar(screen, x, y + 44, w, 22, self.pou.happiness, GREEN, "Felicidade", font)
+        self.draw_bar(screen, x, y + 88, w, 22, self.pou.cleanliness, BLUE, "Limpeza", font)
+        self.draw_bar(screen, x, y + 132, w, 22, self.pou.energy, (160, 100, 240), "Energia", font)
+
+        coins = font.render(f"Moedas: {self.pou.coins}", True, YELLOW)
+        screen.blit(coins, (x, y + 168))
 
 
 
