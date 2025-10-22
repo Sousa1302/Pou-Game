@@ -117,6 +117,60 @@ class Menu:
         pygame.quit()
         sys.exit()
 
+# Save game
+import os
+import json
+
+class GameSave:
+    def __init__(self, save_file="pou_save.json"):
+        self.save_file = save_file
+
+    def save(self, status, visual):
+        """Guarda o estado atual do jogo num ficheiro JSON."""
+        data = {
+            "status": status,
+            "visual": visual
+        }
+        with open(self.save_file, "w") as f:
+            json.dump(data, f)
+        print("💾 Jogo guardado com sucesso!")
+
+    def load(self):
+        """Carrega o estado do jogo a partir do ficheiro JSON, se existir."""
+        if os.path.exists(self.save_file):
+            with open(self.save_file, "r") as f:
+                data = json.load(f)
+                print("📂 Jogo carregado com sucesso!")
+                return (
+                    data.get("status", {
+                        "hunger": 100,
+                        "clean": 100,
+                        "sleep": 100,
+                        "happy": 100
+                    }),
+                    data.get("visual", {
+                        "color": (139, 69, 19),
+                        "hat": None,
+                        "glasses": None
+                    })
+                )
+        else:
+            print("⚠️ Nenhum ficheiro de gravação encontrado. A iniciar novo jogo.")
+            return (
+                {
+                    "hunger": 100,
+                    "clean": 100,
+                    "sleep": 100,
+                    "happy": 100
+                },
+                {
+                    "color": (139, 69, 19),
+                    "hat": None,
+                    "glasses": None
+                }
+            )
+
+
 
 # Example usage
 if __name__ == "__main__":
