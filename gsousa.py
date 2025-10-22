@@ -296,6 +296,129 @@ class MiniGame:
         screen.blit(txt, (20, 20))
 
 
+class MiniGameTrumpet:
+    def __init__(self, assets: AssetLoader, pou: Pou):
+        self.assets = assets
+        self.pou = pou
+        self.active = False
+        self.duration = 30.0
+        self.time_left = self.duration
+        self.score = 0
+
+        # lanes X: 3 centered columns
+        lane_w = 120
+        gap = 40
+        cx = WIDTH // 2
+        self.lanes_x = [
+            cx - lane_w - gap//2,  # J
+            cx,                    # K
+            cx + lane_w + gap//2,  # L
+        ]
+        self.note_speed = 370
+        self.spawn_timer = 0.0
+        self.spawn_every = 0.6
+
+        # y of the line to hit the target on time
+        self.hit_y = HEIGHT - 200
+        self.hit_tol = 24  # tolerance
+
+        self.notes: List[Tuple[int, pygame.Rect]] = []  # (lane_idx, rect)
+        self.font = pygame.font.SysFont("Arial", 26)
+
+        # sound
+        self.snd = self.assets.load_sound("sounds/trumpet.wav")
+
+    def start(self):
+        self.active = True
+        self.time_left = self.duration
+        self.score = 0
+        self.notes.clear()
+        self.spawn_timer = 0.0
+
+    def end(self) -> int:
+        self.active = False
+        earned = self.score
+        self.pou.coins += earned
+        self.pou.happiness = clamp(self.pou.happiness + min(20, earned * 0.7), 0, MAX_STAT)
+        self.pou.energy = clamp(self.pou.energy - 6, 0, MAX_STAT)
+        return earned
+
+    def update(self, dt: float):
+        if not self.active:
+            return
+
+        self.time_left -= dt
+        if self.time_left <= 0:
+            self.end()
+            return
+
+        # spawn
+        self.spawn_timer += dt
+        if self.spawn_timer >= self.spawn_every:
+            self.spawn_timer = 0.0
+            lane = random.randint(0, 2)
+            x = self.lanes_x[lane]
+            r = pygame.Rect(x - 40, -30, 80, 24)
+            self.notes.append((lane, r))
+
+        # mover notes 
+        for i in range(len(self.notes)-1, -1, -1):
+            lane, r = self.notes[i]
+            r.y += int(self.note_speed * dt)
+            if r.top > HEIGHT + 40:
+                self.notes.pop(i)
+
+        # input (J, K, L)
+        keys = pygame.key.get_pressed()
+        key_map = [(pygame.K_j, 0), (pygame.K_k, 1), (pygame.K_l, 2)]
+        for k, lane_idx in key_map:
+            if keys[k]:
+                self.try_hit(lane_idx)
+
+    def try_hit(self, lane_idx: int):
+        # finds the closest note
+        best_i = -1
+        best_dy = 9999
+        for i, (ln, r) in enumerate(self.notes):
+            if ln != lane_idx:
+                continue
+            dy = abs(r.centery - self.hit_y)
+            if dy < best_dy:
+                best_dy = dy
+                best_i = i
+        if best_i != -1 and best_dy <= self.hit_tol:
+            # hit it
+            _, r = self.notes.pop(best_i)
+            self.score += 1
+            if self.snd:
+                try:
+                    self.snd.play()
+                except Exception:
+                    pass
+
+    def draw(self, screen: pygame.Surface, font: pygame.font.Font):
+        if not self.active:
+            return
+
+        screen.fill((10, 20, 28))
+
+        # lanes
+        lane_color = (70, 120, 200)
+        for x in self.lanes_x:
+            pygame.draw.rect(screen, lane_color, (x - 50, 120, 100, HEIGHT - 320), border_radius=12)
+
+        # hitline
+        pygame.draw.line(screen, (240, 220, 60), (self.lanes_x[0] - 60, self.hit_y),
+                         (self.lanes_x[-1] + 60, self.hit_y), 4)
+
+        # notes
+        for _, r in self.notes:
+            pygame.draw.rect(screen, (230, 230, 230), r, border_radius=8)
+
+        # UI
+        txt = font.render(f"Tempo: {self.time_left:0.1f}s  |  Pontos: {self.score}   (J K L)", True, WHITE)
+        screen.blit(txt, (20, 20))
+
 
 class Shop:
     def __init__(self, assets: AssetLoader, pou: Pou):
