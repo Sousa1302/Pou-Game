@@ -1,13 +1,7 @@
-import pygame
-from gsousa import Pou
+from gsousa import Game
 
-pygame.init()
-janela = pygame.display.set_mode((1920, 1080))
-pygame.display.set_caption("Pou")
-
-pou = Pou(900, 500, sprites_folder="sprites")
-
-
-
-
-pygame.quit()
+if __name__ == "__main__":
+    try:
+        Game().run()
+    except Exception as e:
+        print("Fatal error:", e)

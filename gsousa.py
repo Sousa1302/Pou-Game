@@ -3,23 +3,28 @@ import time
 import os
 import math
 import random
+import json
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 ASSETS_DIR = "assets"
-DEFAULT_SKINS = [ru
+DEFAULT_SKINS = [
     {"id": "Toni", "name": "Antonio", "price": 0},
-    {"id": "Alex", "name": "Alexandre", "price": 20},
-    {"id": "Unknown", "name": "Unknown", "price": 30},
+    {"id": "Alex", "name": "Alexandre", "price": 25},
 ]
 
 SKIN_BACKGROUNDS = {
-    "Toni": os.path.join("backgrounds", "windowsXP.png"),
+    "Toni": os.path.join("backgrounds", "windowsxp.png"),
     "Alex": os.path.join("backgrounds", "conservatorio.png"),
-    "Unknown": os.path.join("backgrounds", "unknown.png"),
 }
 
 WIDTH, HEIGHT = 1920, 1080
+FPS = 60
+SAVE_FILE = "save_pou.json"
 
+EAT_TOTAL = 1.0        # full time of animation (secs)
+EAT_SWITCH = 0.5       # time between switching sprites (0.5s)
+HAPPINESS_DECAY_RATE_AWAKE = 1.0   # points by second when awake
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -102,12 +107,13 @@ class AssetLoader:
 
 
 class Pou:
-    def __init__(self, assets: AssetLoader, x: int, y: int, scale: Tuple[int, int] = (260, 260)):
+    def __init__(self, assets: AssetLoader, x: int, y: int, scale: Tuple[int, int] = (660, 660)):
         self.x = x
         self.y = y
         self.assets = assets
         self.scale = scale
 
+        self.eat_anim_timer = 0.0
 
         # Stats of POU
         self.hunger = 70
@@ -115,7 +121,7 @@ class Pou:
         self.cleanliness = 70
         self.energy = 80
 
-        self.coins = 0  # Costa developing the economic system
+        self.coins = 0  
 
         self.state = "idle"  # idle / eat / sleep / happy / sad
         self.is_sleeping = False
@@ -153,6 +159,7 @@ class Pou:
 
     def feed(self):
         self.state = "eat"
+        self.eat_anim_timer = EAT_TOTAL           # activates the animation de 2 frames
         self.hunger = clamp(self.hunger + 20, 0, MAX_STAT)
         self.happiness = clamp(self.happiness + 5, 0, MAX_STAT)
         
@@ -167,7 +174,7 @@ class Pou:
 
     def play_react(self): # Reaction from when he comes back from the minigame
         self.happiness = clamp(self.happiness + 8, 0, MAX_STAT)
-        self.energy = clamp(self.energy - 12, 0, MAX_STAT)
+        self.energy = clamp(self.energy - 6, 0, MAX_STAT)
         self.state = "happy"
 
     def buy_skin(self, skin_id: str, price: int) -> bool:
@@ -183,7 +190,7 @@ class Pou:
 
 
     def update(self, delta_time: float):    # Decrease stats as the time goes by
-        decay = delta_time * 0.8        # speed of decrease of stats 
+        decay = delta_time * 0.6        # speed of decrease of stats 
 
         if not self.is_sleeping:
             self.hunger = clamp(self.hunger - decay, 0, MAX_STAT)
@@ -202,6 +209,16 @@ class Pou:
                 if self.state not in ("eat", "happy"):
                     self.state = "idle"
 
+        # eating animation 
+        if self.state == "eat":
+            self.eat_anim_timer = max(0.0, self.eat_anim_timer - delta_time)
+            if self.eat_anim_timer == 0.0:
+                self.state = "idle"
+
+        # happiness decreases when awake
+        if not self.is_sleeping:
+            self.happiness = clamp(self.happiness - delta_time * HAPPINESS_DECAY_RATE_AWAKE, 0, MAX_STAT)
+
         self.anim_timer += delta_time
 
 
@@ -211,8 +228,24 @@ class Pou:
         screen.blit(img, rect)
 
     def get_state_image(self) -> pygame.Surface:
-        # Path: assets/pou/<skin>/<state>.png
-        path = os.path.join("pou", self.current_skin, f"{self.state}.png")
+        # Standart path to assets
+        base = os.path.join("pou", self.current_skin)
+
+        # Eating animation 
+        if self.state == "eat":
+            # first 0,5 secs, mouth is open
+            frame_path = "eat_open.png" if self.eat_anim_timer > (EAT_TOTAL - EAT_SWITCH) else "eat_close.png"
+
+        
+            full_path = os.path.join(base, frame_path)
+            fallback_path = os.path.join(base, "eat.png")
+            if os.path.isfile(os.path.join(self.assets.base_dir, full_path)):
+                return self.assets.load_image(full_path, self.scale)
+            else:
+                return self.assets.load_image(fallback_path, self.scale)
+
+        # normal states
+        path = os.path.join(base, f"{self.state}.png")
         return self.assets.load_image(path, self.scale)
 
 
@@ -545,29 +578,226 @@ class HUD:
 class Game:
     def __init__(self):
         pygame.init()
-        pygame.display.set_caption("Pou Arresacado")
+        pygame.display.set_caption("POU — Python/Pygame")
+        # starts on fullscreen
         self.fullscreen = True
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)       # Width and height of the game window
+        self.screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
         self.clock = pygame.time.Clock()
+        try:
+            pygame.mixer.init()
+        except Exception:
+            pass  # no sound if not device found 
 
+        self.assets = AssetLoader(ASSETS_DIR)
+        self.font = pygame.font.SysFont("Arial", 22)
+        self.bigfont = pygame.font.SysFont("Arial", 34, bold=True)
+
+        self.pou = Pou(self.assets, WIDTH // 2, HEIGHT // 2 + 40)
+        self.hud = HUD(self.pou)
+        self.shop = Shop(self.assets, self.pou)
+        self.minigame_food = MiniGame(self.assets, self.pou)
+        self.minigame_trumpet = MiniGameTrumpet(self.assets, self.pou)
+        self.cur_minigame = None  # pointer for the active minigame
+
+        self.sfx = SoundBank(self.assets)
+
+        # background being used depeding on the character 
+        self.bg_img: Optional[pygame.Surface] = None
+        self.update_background()
+
+        self.buttons: List[Button] = []
+        self.make_buttons()
+
+        self.load()
+
+        self.running = True
+
+    def update_background(self):
+        path = SKIN_BACKGROUNDS.get(self.pou.current_skin)
+        if path:
+            self.bg_img = self.assets.load_image(path, (WIDTH, HEIGHT))
+        else:
+            self.bg_img = None  # uses smooth fallback
 
     def toggle_fullscreen(self):
         self.fullscreen = not self.fullscreen
         flags = pygame.FULLSCREEN if self.fullscreen else 0
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
 
-    
     def make_buttons(self):
+        def mk(x, y, w, label, cb):
+            self.buttons.append(Button(pygame.Rect(x, y, w, 52), label, on_click=cb))
 
-    
+        y = HEIGHT - 80
+        spacing = 16
+        bw = 220
+
+        labels_cbs = [
+            ("Dar comida", self.on_feed),
+            ("Banho", self.on_bath),
+            ("Dormir/Lev.", self.on_sleep),
+            ("Jogar", self.on_play),
+            ("Loja", self.on_shop),
+            ("Guardar", self.save),
+        ]
+        total_w = len(labels_cbs) * bw + (len(labels_cbs) - 1) * spacing
+        bx = (WIDTH - total_w) // 2
+        for i, (label, cb) in enumerate(labels_cbs):
+            mk(bx + i * (bw + spacing), y, bw, label, cb)
+
+    # Callbacks of buttons
+    def on_feed(self):
+        self.pou.feed()
+        SoundBank.play(self.sfx, self.sfx.s_eat)
+
+    def on_bath(self):
+        self.pou.bath()
+        SoundBank.play(self.sfx, self.sfx.s_happy)
+
+    def on_sleep(self):
+        self.pou.toggle_sleep()
+        if self.pou.is_sleeping:
+            SoundBank.play(self.sfx, self.sfx.s_sleep)
+        else:
+            SoundBank.play(self.sfx, self.sfx.s_happy)
+
+    def on_play(self):
+    # enters / leaves the minigame
+        if self.cur_minigame is None:
+            # chooses the minigame if Alex skin
+            if self.pou.current_skin in ("Alex", "alien"):  
+                self.cur_minigame = self.minigame_trumpet
+            else:
+                self.cur_minigame = self.minigame_food
+            self.cur_minigame.start()
+        else:
+            self.cur_minigame.end()
+            self.cur_minigame = None
+        self.pou.play_react()
+
+
+    def on_shop(self):
+        self.shop.toggle()
+
+    # Save/Load
     def save(self):
+        data = self.pou.to_dict()
+        try:
+            with open(SAVE_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print("Erro a guardar:", e)
 
-    
     def load(self):
+        if os.path.isfile(SAVE_FILE):
+            try:
+                with open(SAVE_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self.pou.from_dict(data)
+                self.update_background()
+            except Exception as e:
+                print("Erro a carregar save:", e)
+
+    # Loop
+    def run(self):
+        last_time = time.time()
+        while self.running:
+            now = time.time()
+            dt = now - last_time
+            last_time = now
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        if self.shop.visible:
+                            self.shop.visible = False
+                        elif self.cur_minigame is not None:
+                            self.cur_minigame.end()
+                            self.cur_minigame = None
+                        else:
+                            self.running = False
+                    elif event.key == pygame.K_F11:
+                        self.toggle_fullscreen()
+
+                # shop events ( X button )
+                if self.shop.visible:
+                    self.shop.handle_event(event)
+
+                # if changed skin on the shop, also changes the background
+                pass
+
+                # show buttons only if not on minigame
+                if not self.shop.visible and (self.cur_minigame is None or not self.cur_minigame.active):
+                    for b in self.buttons:
+                        b.handle_event(event)
+
+            # Update
+            # if skin changes, background also does 
+            self.update_background()
+
+            if self.cur_minigame is not None and self.cur_minigame.active:
+                self.cur_minigame.update(dt)
+            else:
+                self.pou.update(dt)
+
+            # Draw
+            if self.bg_img is not None:
+                self.screen.blit(self.bg_img, (0, 0))
+            else:
+                self.screen.fill((32, 36, 40))
+
+            if self.cur_minigame is not None and self.cur_minigame.active:
+                self.cur_minigame.draw(self.screen, self.font)
+            else:
+                # floor / simple envirnment
+                pygame.draw.rect(self.screen, (25, 25, 25), (0, HEIGHT - 110, WIDTH, 110))
+                pygame.draw.rect(self.screen, (60, 60, 60), (0, HEIGHT - 110, WIDTH, 4))
+
+                # pou
+                self.pou.draw(self.screen)
+
+                # HUD and buttons
+                self.hud.draw(self.screen, self.font)
+                if not self.shop.visible:
+                    for b in self.buttons:
+                        b.draw(self.screen, self.font)
+
+                
+
+                # Shop on top
+                self.shop.draw(self.screen, self.font, self.bigfont)
+
+            pygame.display.flip()
+            self.clock.tick(FPS)
+
+        # exit
+        self.save()
+        pygame.quit()
 
 
 
+@dataclass
 class Button:
+    rect: pygame.Rect
+    label: str
+    bg: Tuple[int, int, int] = BLUE
+    fg: Tuple[int, int, int] = WHITE
+    on_click: Optional[callable] = None
 
+    def draw(self, screen: pygame.Surface, font: pygame.font.Font):
+        mx, my = pygame.mouse.get_pos()
+        hover = self.rect.collidepoint((mx, my))
+        col = lighten(self.bg, 25) if hover else self.bg
+        pygame.draw.rect(screen, col, self.rect, border_radius=10)
+        text_img = font.render(self.label, True, self.fg)
+        screen.blit(text_img, text_img.get_rect(center=self.rect.center))
+
+    def handle_event(self, event: pygame.event.Event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.rect.collidepoint(event.pos):
+                if self.on_click:
+                    self.on_click()
         
 
