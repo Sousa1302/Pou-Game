@@ -107,7 +107,7 @@ class AssetLoader:
 
 
 class Pou:
-    def __init__(self, assets: AssetLoader, x: int, y: int, scale: Tuple[int, int] = (660, 660)):
+    def __init__(self, assets: AssetLoader, x: int, y: int, scale: Tuple[int, int] = (1260, 1260)):
         self.x = x
         self.y = y
         self.assets = assets
@@ -578,7 +578,7 @@ class HUD:
 class Game:
     def __init__(self):
         pygame.init()
-        pygame.display.set_caption("POU — Python/Pygame")
+        pygame.display.set_caption("My Dumb@ss Pet")
         # starts on fullscreen
         self.fullscreen = True
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
