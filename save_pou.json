@@ -1,12 +1,12 @@
 {
-  "hunger": 67.76538558006253,
-  "happiness": 15.210419416427612,
-  "cleanliness": 90.04817032337202,
-  "energy": 45.60561000823989,
-  "coins": 3,
+  "hunger": 96.09247994422905,
+  "happiness": 63.48746657371521,
+  "cleanliness": 57.44333587646487,
+  "energy": 28.029343585967993,
+  "coins": 206,
   "is_sleeping": false,
   "state": "sad",
-  "current_skin": "Alex",
+  "current_skin": "Toni",
   "owned_skins": {
     "Toni": true,
     "Alex": true

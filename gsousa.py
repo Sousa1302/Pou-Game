@@ -18,6 +18,11 @@ SKIN_BACKGROUNDS = {
     "Alex": os.path.join("backgrounds", "conservatorio.png"),
 }
 
+MUSIC_BY_SKIN = {
+    "Toni": os.path.join("music", "toni_theme.wav"),   
+    "Alex": os.path.join("music", "alex_theme.mp3"),   
+}
+
 WIDTH, HEIGHT = 1920, 1080
 FPS = 60
 SAVE_FILE = "save_pou.json"
@@ -257,7 +262,7 @@ class MiniGame:
         self.items: List[pygame.Rect] = []
         self.item_speed = 220
         self.spawn_timer = 0.0
-        self.duration = 30.0  # seconds
+        self.duration = 20.0  # seconds
         self.time_left = self.duration
         self.basket = pygame.Rect(WIDTH // 2 - 60, HEIGHT - 120, 120, 28)
         self.score = 0
@@ -286,12 +291,14 @@ class MiniGame:
         self.time_left -= dt
         if self.time_left <= 0:
             self.end()
+            pygame.mouse.set_visible(True)
             return
 
-        # move basket with mouse cursor
+        # move basket with mouse 
         mx, _ = pygame.mouse.get_pos()
         self.basket.centerx = mx
         self.basket.clamp_ip(pygame.Rect(0, 0, WIDTH, HEIGHT))
+        pygame.mouse.set_visible(False)
 
         # item spawn
         self.spawn_timer += dt
@@ -583,10 +590,14 @@ class Game:
         self.fullscreen = True
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
         self.clock = pygame.time.Clock()
+        
         try:
             pygame.mixer.init()
         except Exception:
             pass  # no sound if not device found 
+
+        self.music_skin: Optional[str] = None    # qual skin está a tocar agora
+        self.music_volume = 0.5
 
         self.assets = AssetLoader(ASSETS_DIR)
         self.font = pygame.font.SysFont("Arial", 22)
@@ -613,11 +624,20 @@ class Game:
         self.running = True
 
     def update_background(self):
-        path = SKIN_BACKGROUNDS.get(self.pou.current_skin)
+        prev = getattr(self, "_bg_for_skin", None)
+        cur = self.pou.current_skin
+        if cur == prev:
+            return  # nada mudou; evita trabalho e evitarias flash
+        self._bg_for_skin = cur
+
+        path = SKIN_BACKGROUNDS.get(cur)
         if path:
             self.bg_img = self.assets.load_image(path, (WIDTH, HEIGHT))
         else:
-            self.bg_img = None  # uses smooth fallback
+            self.bg_img = None
+
+        # sempre que a skin muda, alterna a música
+        self.play_skin_music()
 
     def toggle_fullscreen(self):
         self.fullscreen = not self.fullscreen
@@ -697,6 +717,39 @@ class Game:
                 self.update_background()
             except Exception as e:
                 print("Erro a carregar save:", e)
+    
+    def play_skin_music(self):
+        # se não houver mixer, não faz nada
+        if not pygame.mixer.get_init():
+            return
+
+        skin = self.pou.current_skin
+        # evita recarregar a mesma música
+        if skin == self.music_skin:
+            return
+
+        rel = MUSIC_BY_SKIN.get(skin)
+        if not rel:
+            # se a skin não tiver música, pára
+            pygame.mixer.music.stop()
+            self.music_skin = None
+            return
+
+        full = os.path.join(self.assets.base_dir, rel)  # normalmente "assets/<rel>"
+        if os.path.isfile(full):
+            try:
+                pygame.mixer.music.load(full)
+                pygame.mixer.music.set_volume(self.music_volume)
+                pygame.mixer.music.play(-1)  # loop infinito
+                self.music_skin = skin
+            except Exception as e:
+                print("Erro a carregar música:", e)
+                self.music_skin = None
+        else:
+            # ficheiro em falta: não quebra o jogo
+            print("Música não encontrada:", full)
+            pygame.mixer.music.stop()
+            self.music_skin = None
 
     # Loop
     def run(self):
@@ -736,6 +789,7 @@ class Game:
             # Update
             # if skin changes, background also does 
             self.update_background()
+            self.play_skin_music()
 
             if self.cur_minigame is not None and self.cur_minigame.active:
                 self.cur_minigame.update(dt)
