@@ -1,4 +1,4 @@
-from gsousa import Game
+from game import Game
 
 if __name__ == "__main__":
     try:
