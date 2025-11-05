@@ -365,15 +365,13 @@ class MiniGameTrumpet:
         self.notes: List[Tuple[int, pygame.Rect]] = []  # (lane_idx, rect)
         self.font = pygame.font.SysFont("Arial", 26)
 
-        # sound
-        self.snd = self.assets.load_sound("sounds/trumpet.wav")
-
     def start(self):
         self.active = True
         self.time_left = self.duration
         self.score = 0
         self.notes.clear()
         self.spawn_timer = 0.0
+
 
     def end(self) -> int:
         self.active = False
@@ -430,11 +428,6 @@ class MiniGameTrumpet:
             # hit it
             _, r = self.notes.pop(best_i)
             self.score += 1
-            if self.snd:
-                try:
-                    self.snd.play()
-                except Exception:
-                    pass
 
     def draw(self, screen: pygame.Surface, font: pygame.font.Font):
         if not self.active:
@@ -846,6 +839,7 @@ class Game:
         else:
             self.cur_minigame.end()
             self.cur_minigame = None
+            self.music_skin = None 
         self.pou.play_react()
 
     def on_shop(self):
@@ -945,7 +939,8 @@ class Game:
                         b.handle_event(event)
 
             self.update_background()
-            self.play_skin_music()
+            if not (self.cur_minigame and self.cur_minigame.active):
+                self.play_skin_music()
 
             if self.cur_minigame is not None and self.cur_minigame.active:
                 self.cur_minigame.update(dt)
