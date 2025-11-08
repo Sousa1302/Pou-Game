@@ -831,7 +831,7 @@ class Game:
 
     def on_play(self):
         if self.cur_minigame is None:
-            if self.pou.current_skin in ("Alex", "alien"):
+            if self.pou.current_skin in ("Alex"):
                 self.cur_minigame = self.minigame_trumpet
             else:
                 self.cur_minigame = self.minigame_food
