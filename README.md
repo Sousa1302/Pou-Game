@@ -44,7 +44,3 @@ pip install pygame
 ```bash
 python main.py
 ```
-
-## License
-
-This project is intended for educational purposes.
